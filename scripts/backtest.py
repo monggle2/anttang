@@ -24,7 +24,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import update as u  # noqa: E402
 
-VERSION = 4
+VERSION = 5
 HORIZONS = (5, 10, 15, 20, 60, 120, 250)   # 1·2·3·4주, 12주, 6개월, 1년 (거래일)
 H_NAMES = ("1주", "2주", "3주", "4주", "12주", "6개월", "1년")
 BANDS = [("냉탕", 0, 25), ("온탕", 25, 50), ("끓는 중", 50, 75), ("개미탕", 75, 101)]
@@ -100,6 +100,8 @@ def credit_history(anchor_eok):
     base = {"User-Agent": u.UA, "Accept-Language": "ko-KR,ko;q=0.9"}
     op.open(urllib.request.Request(screen, headers=base), timeout=30).read()
 
+    sample = []
+
     def chunk(a, b):
         body = json.dumps({"dmSearch": {"tmpV40": "1000000", "tmpV41": "1", "tmpV1": "D", "tmpV45": a, "tmpV46": b,
                                         "OBJ_NM": "STATSCU0100000070BO"}}).encode()
@@ -112,6 +114,9 @@ def credit_history(anchor_eok):
                 j = json.loads(op.open(req, timeout=40).read().decode("utf-8", "replace"))
                 rows = j.get("ds1") or next((v for v in j.values() if isinstance(v, list) and v and isinstance(v[0], dict)), [])
                 got = {}
+                if rows:
+                    sample.clear()
+                    sample.extend(rows[:2] + rows[-2:])
                 for r in rows:
                     d = str(r.get("TMPV1", "")).replace("/", "").replace("-", "")
                     try:
@@ -136,11 +141,23 @@ def credit_history(anchor_eok):
         time.sleep(0.4)
     if len(raw) < 300:
         raise ValueError(f"신용잔고 과거 값이 부족함({len(raw)}일) {failed[:2]}")
-    latest = raw[max(raw)]
+    try:
+        return clean_scale(raw, anchor_eok), failed
+    except ValueError as e:
+        raise ValueError(f"{e} / 응답 예: {json.dumps(sample, ensure_ascii=False)[:230]}")
+
+
+def clean_scale(raw, anchor_eok):
+    """맨 끝의 덜 채워진 행을 버리고, 최근 실제 값(anchor)에 단위를 맞춘다."""
+    ds = sorted(raw)
+    top = max(raw[d] for d in ds[-8:])
+    while ds and raw[ds[-1]] < 0.75 * top:   # 코스피만 먼저 올라온 날 등
+        raw.pop(ds.pop())
+    latest = raw[ds[-1]]
     factor = 10 ** round(math.log10(anchor_eok / latest))
     if not 0.8 <= latest * factor / anchor_eok <= 1.25:
         raise ValueError(f"신용잔고 단위를 맞추지 못함(최근 {latest}, 기준 {anchor_eok})")
-    return {d: v * factor for d, v in raw.items()}, failed
+    return {d: v * factor for d, v in raw.items()}
 
 
 # ───────── 도구 ─────────
@@ -176,6 +193,8 @@ def main():
     credit, cr_failed = cr if cr else ({}, [])
     if cr_failed:
         notes.append(f"신용잔고 일부 구간 누락 {len(cr_failed)}건")
+    if not credit:
+        notes.append("신용잔고 과거 값을 못 받아 물린 개미는 개인 누적 순매수만으로 계산, 장기 공식은 생략")
 
     now = dt.datetime.now(u.KST).isoformat(timespec="seconds")
     if not (kospi and nasdaq and vix):
@@ -285,8 +304,12 @@ def main():
         def sc(fire, pot):
             return math.sqrt(max(fire, 0) * max(pot, 0)) if pot is not None else None
 
-        s_now = sc(fire_live, u.W_POT[0] * t_abs + u.W_POT[1] * m_abs) if t_abs is not None and m_abs is not None else None
-        s_norm = sc(fire_live, u.W_POT[0] * t_norm + u.W_POT[1] * m_norm) if t_norm is not None and m_norm is not None else None
+        if not crd:   # 신용잔고를 못 받았으면 개인 누적 순매수만으로
+            s_now = sc(fire_live, t_abs)
+            s_norm = sc(fire_live, t_norm)
+        else:
+            s_now = sc(fire_live, u.W_POT[0] * t_abs + u.W_POT[1] * m_abs) if t_abs is not None and m_abs is not None else None
+            s_norm = sc(fire_live, u.W_POT[0] * t_norm + u.W_POT[1] * m_norm) if t_norm is not None and m_norm is not None else None
         s_long = sc(fire_proxy, m_norm)
         rows.append((i, d, s_now, s_norm, s_long))
 
