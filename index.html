@@ -19,6 +19,16 @@ body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(-
 .gt{margin:0 auto;padding:24px max(16px,env(safe-area-inset-left)) 40px max(16px,env(safe-area-inset-right))}
 .gt-foot{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);border-top:1px solid var(--color-border-line);padding-top:var(--cds-gap-md)}
 .gt-foot p{margin:0 0 4px}
+.gt-sechead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--cds-gap-sm)}
+.gt-seg{display:inline-flex;border:1px solid var(--color-border-line);border-radius:999px;overflow:hidden}
+.gt-seg button{font:inherit;font-size:var(--cds-font-size-caption);padding:6px 14px;border:0;background:transparent;color:var(--color-fg-muted);cursor:pointer}
+.gt-seg button.on{background:var(--color-fg);color:var(--color-bg);font-weight:var(--cds-font-weight-medium)}
+.gt-seg button:focus-visible{outline:2px solid var(--color-warn);outline-offset:-2px}
+.gt-st td.n{font-weight:var(--cds-font-weight-medium)}
+.gt-st td small{display:block;font-weight:400;color:var(--color-fg-muted);font-size:.72rem}
+.gt-st th.now,.gt-st td.now{background:color-mix(in srgb,var(--color-warn) 16%,transparent)}
+.gt-st td.few{opacity:.55}
+.gt-note{margin:0;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);line-height:1.6}
 
 .gt{display:flex;flex-direction:column;gap:var(--cds-gap-xl);max-width:980px;font-family:var(--font-anthropic-sans)}
 .gt h1{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0}
@@ -118,11 +128,21 @@ body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(-
     <p class="gt-sub">불 세기 <b data-draw="gval" data-source="gauge" data-field="fire" data-row="0">—</b> · 물린 개미 <b data-draw="gval" data-source="gauge" data-field="pot" data-row="0">—</b></p>
   </section>
 
-  <section class="gt-sec" id="indices">
-    <h2>오늘의 지수</h2>
-    <div class="gt-idx" data-draw="idx" data-source="indices"></div>
+  <section class="gt-sec" id="sectors" hidden>
+    <div class="gt-sechead">
+      <h2>단계별 섹터 성적</h2>
+      <div class="gt-seg" role="group" aria-label="기간"><button type="button" data-h="0" class="on">4주 뒤</button><button type="button" data-h="1">12주 뒤</button></div>
+    </div>
+    <div class="gt-tablewrap">
+      <table class="gt-table gt-st">
+        <thead><tr><th>섹터</th><th class="n">냉탕</th><th class="n">온탕</th><th class="n">끓는 중</th><th class="n">개미탕</th></tr></thead>
+        <tbody id="st-body"></tbody>
+      </table>
+    </div>
+    <p class="gt-note">그 단계였던 날 섹터 대장주를 샀을 때의 평균 수익률이에요. 작은 숫자는 오른 비율. <span id="st-range"></span></p>
+    <p class="gt-note">* 참고용 수치일 뿐, 선택은 본인 몫이다</p>
   </section>
-  <footer class="gt-foot"><p id="gt-updated"></p><p>투자 권유가 아닌 참고용 지표입니다</p></footer>
+  <footer class="gt-foot"><p id="gt-updated"></p></footer>
 </div>
 
 <script>
@@ -152,6 +172,37 @@ body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(-
       if(m.trapped_estimated)t.push('개인 누적 순매수는 일부 추정');
       if(m.stale&&m.stale.length)t.push('이전 값 유지: '+m.stale.join(', '));
       document.getElementById('gt-updated').textContent=t.join(' · ');
+      fetch('data/backtest_long.json?t='+Date.now()).then(function(r){return r.ok?r.json():null;}).then(function(b){
+        if(!b||!b.sectors||!b.sectors.length)return;
+        var hide={'방산':1,'2차전지':1},sc=+((store.gauge||[{}])[0].score),cur=sc>=75?3:sc>=50?2:sc>=25?1:0,hz=0;
+        var tb=document.getElementById('st-body'),ths=document.querySelectorAll('.gt-st thead th');
+        function sg(v){return (v>0?'+':v<0?'\u2212':'')+Math.abs(v).toFixed(1)+'%';}
+        function draw(){
+          tb.replaceChildren();
+          ths.forEach(function(th,i){th.classList.toggle('now',i===cur+1);});
+          b.sectors.forEach(function(s){
+            if(hide[s.sector])return;
+            var tr=document.createElement('tr'),td=document.createElement('td');td.textContent=s.sector;tr.append(td);
+            for(var k=0;k<4;k++){
+              var c=s.bands[k].h[hz],x=document.createElement('td');
+              x.className='n'+(k===cur?' now':'');
+              if(!c){x.textContent='\u2014';}
+              else{
+                x.textContent=sg(c[1]);x.classList.add(c[1]>0?'gt-up':'gt-dn');
+                if(c[0]<100)x.classList.add('few');
+                var sm=document.createElement('small');sm.textContent=c[2]+'%'+(c[0]<100?' \u00b7 '+c[0]+'일':'');x.append(sm);
+              }
+              tr.append(x);
+            }
+            tb.append(tr);
+          });
+        }
+        document.querySelectorAll('.gt-seg button').forEach(function(bt){bt.onclick=function(){hz=+bt.getAttribute('data-h');
+          document.querySelectorAll('.gt-seg button').forEach(function(o){o.classList.toggle('on',o===bt);});draw();};});
+        var v=(b.variants||[]).filter(function(x){return x.name==='정규화 공식';})[0];
+        if(v)document.getElementById('st-range').textContent=v.from.slice(0,7).replace('-','.')+'부터 집계. 흐린 칸은 사례가 100일 미만.';
+        draw();document.getElementById('sectors').hidden=false;
+      }).catch(function(){});
     }).catch(function(e){document.getElementById('gt-updated').textContent='데이터를 불러오지 못했어요';console.error(e);});
   };
 })();
