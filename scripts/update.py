@@ -358,6 +358,16 @@ def main():
     print(f"[{date}] 개미탕 지수 {gauge['score']} (불 {gauge['fire']}, 물린 개미 {gauge['pot']})")
     for name, st in status.items():
         print(("  OK   " if st.get("ok") else "  실패 ") + name + ("" if st.get("ok") else " → " + st.get("error", "")))
+
+    # 과거 검증은 일주일에 한 번(실패했으면 다음 실행 때 다시)
+    bt = load("backtest.json", {})
+    if not bt.get("ok") or bt.get("at", "")[:10] < (now.date() - dt.timedelta(days=7)).isoformat():
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import backtest
+            backtest.main()
+        except Exception as e:  # noqa: BLE001
+            print("과거 검증 실패:", e)
     return 0
 
 
