@@ -139,7 +139,6 @@ body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(-
         <tbody id="st-body"></tbody>
       </table>
     </div>
-    <p class="gt-note">그 단계였던 날 섹터 대장주를 샀을 때의 평균 수익률이에요. 작은 숫자는 오른 비율. <span id="st-range"></span></p>
     <p class="gt-note">* 과거 데이터를 집계한 통계입니다. 참고용으로만 사용하세요.</p>
     <p class="gt-note">* 투자는 본인의 선택이며, 그 결과에 대해 책임지지 않습니다.</p>
   </section>
@@ -201,7 +200,6 @@ body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(-
         document.querySelectorAll('.gt-seg button').forEach(function(bt){bt.onclick=function(){hz=+bt.getAttribute('data-h');
           document.querySelectorAll('.gt-seg button').forEach(function(o){o.classList.toggle('on',o===bt);});draw();};});
         var v=(b.variants||[]).filter(function(x){return x.name==='정규화 공식';})[0];
-        if(v)document.getElementById('st-range').textContent=v.from.slice(0,7).replace('-','.')+'부터 집계. 흐린 칸은 사례가 100일 미만.';
         draw();document.getElementById('sectors').hidden=false;
       }).catch(function(){});
     }).catch(function(e){document.getElementById('gt-updated').textContent='데이터를 불러오지 못했어요';console.error(e);});
