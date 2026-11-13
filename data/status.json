@@ -1,0 +1,45 @@
+{
+ "at": "2026-11-13T11:20:39+09:00",
+ "sources": {
+  "지수:코스피": {
+   "ok": true
+  },
+  "지수:코스닥": {
+   "ok": true
+  },
+  "지수:나스닥": {
+   "ok": true
+  },
+  "지수:닛케이": {
+   "ok": true
+  },
+  "지수:항셍": {
+   "ok": true
+  },
+  "지수:상하이종합": {
+   "ok": true
+  },
+  "공포탐욕지수": {
+   "ok": true
+  },
+  "신용융자 잔고": {
+   "ok": true
+  },
+  "개인 순매수:kospi": {
+   "ok": false,
+   "error": "HTTPError: HTTP Error 410: 410"
+  },
+  "개인 순매수:kosdaq": {
+   "ok": false,
+   "error": "HTTPError: HTTP Error 410: 410"
+  },
+  "probe:naver_new": {
+   "ok": true,
+   "sample": "{\"content\":[{\"bizdate\":\"20261113\",\"time\":\"\",\"netAmounts\":[{\"investorGubun\":\"9001\",\"diffValue\":\"-2559000000\",\"sellQuant\":\"272657\",\"sellPrice\":\"8797000000\",\"buyQuant\":\"196061\",\"buyPrice\":\"6238000000\"},{\"investorGubun\":\"9000\",\"diffValue\":\"31648000000\",\"sellQuant\":\"31752209\",\"sellPrice\":\"2332986000000\",\"buyQuant\":\"37446101\",\"buyPrice\":\"2364634000000\"},{\"investorGubun\":\"8000\",\"diffValue\":\"-350247000000"
+  },
+  "probe:daum": {
+   "ok": true,
+   "sample": "{\"code\":200,\"message\":\"OK\",\"data\":[{\"date\":\"2026-11-13 00:00:00\",\"individualStraightPurchasePrice\":-353295090828.000,\"foreignStraightPurchasePrice\":29859075784.000,\"institutionStraightPurchasePrice\":107930040382.000,\"details\":null},{\"date\":\"2026-11-12 00:00:00\",\"individualStraightPurchasePrice\":-278505508294.000,\"foreignStraightPurchasePrice\":412128312629.000,\"institutionStraightPurchasePrice\":-65"
+  }
+ }
+}
