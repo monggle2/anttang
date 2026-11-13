@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>개미탕 지수</title>
+<meta name="description" content="개미들이 얼마나 삶아지고 있는지 보여주는 개미탕 지수. 매일 자동 갱신.">
+<meta property="og:title" content="개미탕 지수">
+<meta property="og:description" content="오늘 개미탕은 몇 도?">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%B2%3C/text%3E%3C/svg%3E">
+<style>
+:root{--color-fg:#1d1f2b;--color-fg-muted:#676b7e;--color-bg:#f5f6fa;--color-panel:#ffffff;--color-border-line:#dfe2ec;--color-ok:#1f9d6b;--color-warn:#c9820a;--color-bad:#d8432f;
+--font-anthropic-sans:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;--font-anthropic-serif:var(--font-anthropic-sans);
+--cds-font-size-caption:.8rem;--cds-font-size-body:1rem;--cds-font-size-heading:1.15rem;--cds-font-size-title:1.7rem;--cds-font-weight-medium:600;
+--cds-gap-xs:4px;--cds-gap-sm:8px;--cds-gap-md:12px;--cds-gap-lg:20px;--cds-gap-xl:28px;--cds-pad-md:12px;--cds-pad-lg:18px;--cds-radius:14px}
+@media (prefers-color-scheme: dark){:root{--color-fg:#eceef6;--color-fg-muted:#9aa0b8;--color-bg:#14162a;--color-panel:#1d2038;--color-border-line:#2f3352;--color-ok:#4fd39c;--color-warn:#f0b54a;--color-bad:#ff7a66;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(--font-anthropic-sans);font-size:15px;line-height:1.5}
+.gt{margin:0 auto;padding:24px max(16px,env(safe-area-inset-left)) 40px max(16px,env(safe-area-inset-right))}
+.gt-foot{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);border-top:1px solid var(--color-border-line);padding-top:var(--cds-gap-md)}
+.gt-foot p{margin:0 0 4px}
+
+.gt{display:flex;flex-direction:column;gap:var(--cds-gap-xl);max-width:980px;font-family:var(--font-anthropic-sans)}
+.gt h1{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0}
+.gt h2{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);margin:0}
+.gt h3{font-size:var(--cds-font-size-body);font-weight:var(--cds-font-weight-medium);margin:0}
+.gt-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--cds-gap-sm) var(--cds-gap-md)}
+.gt-date{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
+.gt-pill{display:inline-block;padding:.2em .8em;border-radius:999px;font-weight:var(--cds-font-weight-medium);border:1px solid var(--color-border-line)}
+.gt-pill.s-ok{color:var(--color-ok);border-color:var(--color-ok)}
+.gt-pill.s-warn{color:var(--color-warn);border-color:var(--color-warn)}
+.gt-pill.s-bad{color:var(--color-bad);border-color:var(--color-bad)}
+.gt-scene{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-lg);display:flex;flex-direction:column;align-items:center;gap:var(--cds-gap-sm)}
+.gt-pot{width:100%;max-width:520px;min-height:260px}
+.gt-pot svg{display:block;width:100%;height:auto}
+.gt-mood{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);text-align:center}
+.gt-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--cds-gap-md)}
+.gt-stat{display:flex;flex-direction:column;gap:2px;min-width:0;border-top:1px solid var(--color-border-line);padding-top:var(--cds-gap-sm)}
+.gt-label{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.gt-big{font-family:var(--font-anthropic-serif);font-weight:400;font-size:2rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.gt-sec{display:flex;flex-direction:column;gap:var(--cds-gap-md)}
+.gt-legend{display:flex;flex-wrap:wrap;gap:var(--cds-gap-md);font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.gt-legend span{display:inline-flex;align-items:center;gap:6px}
+.gt-sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+.gt-panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--cds-gap-lg)}
+.gt-panel{display:flex;flex-direction:column;gap:var(--cds-gap-xs);min-width:0}
+.gt-chart{position:relative;min-height:220px}
+.gt-chart svg{display:block;overflow:visible}
+.gt-chart .ax{font-size:var(--cds-font-size-caption);fill:var(--cds-text-secondary);font-variant-numeric:tabular-nums}
+.gt-chart .vl{font-size:10px;fill:var(--cds-text-secondary);font-variant-numeric:tabular-nums}
+.gt-chart .grid{stroke:var(--cds-chart-grid)}
+.gt-chart .zero{stroke:var(--cds-chart-axis)}
+.gt-tip{position:absolute;pointer-events:none;background:var(--cds-surface-popover);border:1px solid var(--cds-border);box-shadow:var(--cds-shadow-popover);border-radius:var(--cds-radius);padding:6px 9px;font-size:var(--cds-font-size-caption);white-space:nowrap;z-index:2;font-variant-numeric:tabular-nums}
+.gt-tip span{color:var(--cds-text-secondary)}
+.gt-fail{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.gt-tablewrap{overflow-x:auto}
+.gt-table{width:100%;border-collapse:collapse}
+.gt-table th,.gt-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--color-border-line)}
+.gt-table th{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-weight:var(--cds-font-weight-medium);white-space:nowrap}
+.gt-table .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.up{color:var(--color-bad)}.down{color:var(--color-ok)}
+[data-dash-source-state=refreshing]{opacity:.5}
+.gt-pot svg{border-radius:18px}
+@media (prefers-reduced-motion: no-preference){
+  .gt-pot .flame{transform-box:fill-box;transform-origin:50% 100%;animation:gtFlick .9s ease-in-out infinite alternate}
+  .gt-pot .flame.f2{animation-duration:.7s;animation-delay:-.3s}
+  .gt-pot .bob{animation:gtBob 2.2s ease-in-out infinite alternate}
+  .gt-pot .bob.b2{animation-duration:1.7s;animation-delay:-.8s}
+  .gt-pot .bob.fast{animation-duration:.5s}
+  .gt-pot .wave{transform-box:fill-box;transform-origin:50% 100%;animation:gtWave .3s ease-in-out infinite alternate}
+  .gt-pot .walk{animation:gtWalk .4s ease-in-out infinite alternate}
+  .gt-pot .leg{transform-box:fill-box;transform-origin:50% 0%;animation:gtLeg .4s ease-in-out infinite alternate}
+  .gt-pot .leg.l2{animation-direction:alternate-reverse}
+  .gt-pot .steam{animation:gtSteam 4s ease-in-out infinite}
+  .gt-pot .steam.s2{animation-delay:-1.3s}.gt-pot .steam.s3{animation-delay:-2.6s}
+  .gt-pot .tw{animation:gtTw 2.5s ease-in-out infinite alternate}
+  .gt-pot .tw.t2{animation-delay:-1.2s}
+}
+@keyframes gtFlick{from{transform:scale(1.05,.92) skewX(-3deg)}to{transform:scale(.95,1.08) skewX(3deg)}}
+@keyframes gtBob{from{transform:translateY(1.5px)}to{transform:translateY(-1.5px)}}
+@keyframes gtWave{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}
+@keyframes gtWalk{from{transform:translateY(0)}to{transform:translateY(-1.5px)}}
+@keyframes gtLeg{from{transform:rotate(-16deg)}to{transform:rotate(16deg)}}
+@keyframes gtSteam{0%{opacity:0;transform:translateY(8px)}35%{opacity:.3}100%{opacity:0;transform:translateY(-22px)}}
+@keyframes gtTw{from{opacity:.25}to{opacity:.9}}
+
+.gt-score{display:flex;align-items:baseline;gap:.35em;justify-content:center}
+.gt-score b{font-family:var(--font-anthropic-serif);font-weight:400;font-size:3.2rem;line-height:1;font-variant-numeric:tabular-nums}
+.gt-score span{color:var(--color-fg-muted)}
+.gt-phrase{margin:0;font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);text-align:center;text-wrap:balance}
+.gt-sub{margin:0;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
+.gt-sub b{color:var(--color-fg);font-weight:var(--cds-font-weight-medium)}
+.gt-idx{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--cds-gap-md);min-height:90px}
+.gt-ix{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-md);display:flex;flex-direction:column;gap:2px;min-width:0}
+.gt-ix .nm{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.gt-ix .cl{font-family:var(--font-anthropic-serif);font-size:1.5rem;line-height:1.15;font-variant-numeric:tabular-nums}
+.gt-ix .ch{font-weight:var(--cds-font-weight-medium);font-variant-numeric:tabular-nums}
+.gt-ix .nt{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.gt-up{color:#e0483e}.gt-dn{color:#3b78e0}
+</style>
+</head>
+<body>
+<div class="gt" data-read lang="ko">
+  <header class="gt-head" id="top">
+    <h1>개미탕 지수</h1>
+    <span class="gt-pill" data-draw="stage" data-source="gauge">—</span>
+    <span class="gt-date" data-draw="date" data-source="gauge" data-field="date" data-row="0">—</span>
+  </header>
+
+  <section class="gt-scene" id="pot">
+    <div class="gt-pot" data-draw="pot" data-source="gauge"></div>
+    <div class="gt-score"><b data-draw="gval" data-source="gauge" data-field="score" data-row="0">—</b><span>/ 100</span></div>
+    <p class="gt-phrase" data-band="0" hidden>물이 미지근해요. 개미들 표정이 편안해요</p>
+    <p class="gt-phrase" data-band="1" hidden>뜨끈해지는 중. 아직은 버틸 만해요</p>
+    <p class="gt-phrase" data-band="2" hidden>물이 끓기 시작했어요. 개미들이 땀을 뻘뻘 흘려요</p>
+    <p class="gt-phrase" data-band="3" hidden>펄펄 끓는 개미탕. 개미들이 살려달라고 소리쳐요</p>
+    <p class="gt-phrase" data-band="4" hidden>탕이 넘쳤어요. 투매와 반대매매가 쏟아져요</p>
+    <p class="gt-sub">불 세기 <b data-draw="gval" data-source="gauge" data-field="fire" data-row="0">—</b> · 물린 개미 <b data-draw="gval" data-source="gauge" data-field="pot" data-row="0">—</b></p>
+  </section>
+
+  <section class="gt-sec" id="indices">
+    <h2>오늘의 지수</h2>
+    <div class="gt-idx" data-draw="idx" data-source="indices"></div>
+  </section>
+  <footer class="gt-foot"><p id="gt-updated"></p><p>데이터: 금융투자협회, Yahoo Finance, 네이버 금융, CNN · 매일 자동 갱신 · 투자 권유가 아닌 참고용 지표입니다</p></footer>
+</div>
+
+<script>
+// 데이터 파일(data/latest.json)을 읽어 화면을 그리는 작은 연결부
+(function(){
+  var store={},onData=[],draws={};
+  function pad(n){return (n<10?'0':'')+n;}
+  window.d3={
+    utcFormat:function(f){return function(d){var y=d.getUTCFullYear(),m=d.getUTCMonth()+1,a=d.getUTCDate();
+      return f.indexOf('%Y')>=0?y+'.'+pad(m)+'.'+pad(a):m+'.'+a;};},
+    format:function(){return function(v){return Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});};}
+  };
+  window.dash={colors:[],calc:function(){},
+    data:function(id){return store[id]?{status:'ok',data:store[id]}:{status:'loading',data:[]};},
+    onData:function(f){onData.push(f);},
+    draw:function(n,f){draws[n]=f;}};
+  window.gtRender=function(){
+    onData.forEach(function(f){try{f();}catch(e){console.error(e);}});
+    document.querySelectorAll('[data-draw]').forEach(function(el){var f=draws[el.getAttribute('data-draw')];if(f){try{f(el);}catch(e){console.error(e);}}});
+  };
+  window.gtLoad=function(){
+    fetch('data/latest.json?t='+Date.now()).then(function(r){return r.json();}).then(function(j){
+      store.gauge=j.gauge;store.indices=j.indices;gtRender();
+      var m=j.meta||{},t=[];
+      if(m.updated_at)t.push('갱신 '+m.updated_at.slice(0,16).replace('T',' '));
+      if(m.credit_date)t.push('신용잔고 '+m.credit_date.slice(5).replace('-','.')+' 기준');
+      if(m.trapped_estimated)t.push('개인 누적 순매수는 일부 추정');
+      if(m.stale&&m.stale.length)t.push('이전 값 유지: '+m.stale.join(', '));
+      document.getElementById('gt-updated').textContent=t.join(' · ');
+    }).catch(function(e){document.getElementById('gt-updated').textContent='데이터를 불러오지 못했어요';console.error(e);});
+  };
+})();
+</script>
+<script>
+(function(){
+  var NS='http://www.w3.org/2000/svg';
+  function rows(id){var d=dash.data(id);return d.status==='ok'&&Array.isArray(d.data)&&d.data.length?d.data:null;}
+  function pct(v){v=+v;return (v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(2)+'%';}
+  function el(tag,attrs,parent){var n=document.createElementNS(NS,tag);for(var k in attrs)n.setAttribute(k,attrs[k]);if(parent)parent.appendChild(n);return n;}
+  var BANDS=[{t:'냉탕',c:'s-ok'},{t:'온탕',c:'s-ok'},{t:'끓는 중',c:'s-warn'},{t:'개미탕',c:'s-bad'},{t:'넘침',c:'s-bad'}];
+  function bandOf(g){
+    if(!g) return -1;
+    var sc=+g[0].score;
+    if(sc>=75) return g[0].trigger==='발동'?4:3;
+    return sc>=50?2:sc>=25?1:0;
+  }
+
+  dash.onData(function(){
+    var b=bandOf(rows('gauge'));
+    document.querySelectorAll('.gt-phrase').forEach(function(p){p.hidden=String(b)!==p.getAttribute('data-band');});
+  });
+
+  dash.draw('stage',function(e){var b=bandOf(rows('gauge'));e.textContent=b<0?'—':BANDS[b].t;e.className='gt-pill'+(b<0?'':' '+BANDS[b].c);});
+  dash.draw('date',function(e){var r=rows('gauge');e.textContent=r?d3.utcFormat('%Y.%m.%d')(new Date(r[0].date+'T00:00:00Z')):'—';});
+  dash.draw('gval',function(e){var r=rows('gauge');e.textContent=r?String(Math.round(+r[0][e.getAttribute('data-field')])):'—';});
+
+  dash.draw('idx',function(box){
+    var d=dash.data('indices');
+    box.replaceChildren();
+    if(d.status==='error'){var p=document.createElement('p');p.className='gt-fail';p.textContent='불러오지 못했어요';box.append(p);return;}
+    if(d.status!=='ok'||!d.data.length){box.textContent='—';return;}
+    var fmt=d3.format(',.2f'),fd=d3.utcFormat('%-m.%-d');
+    d.data.forEach(function(r){
+      var c=document.createElement('div');c.className='gt-ix';
+      function sp(cls,txt,field){var x=document.createElement('span');x.className=cls;x.textContent=txt;if(field){x.setAttribute('data-source','indices');x.setAttribute('data-field',field);x.setAttribute('data-where','name='+r.name);}c.append(x);}
+      sp('nm',r.name,'name');
+      sp('cl',fmt(+r.close),'close');
+      sp('ch '+(+r.chg>0?'gt-up':+r.chg<0?'gt-dn':''),pct(r.chg),'chg');
+      sp('nt',fd(new Date(r.date+'T00:00:00Z'))+(r.note?' · '+r.note:' 마감'));
+      box.append(c);
+    });
+  });
+
+  var C={bg:'#262b4a',floor:'#1e2240',star:'#aab1e0',pot:'#474d70',potD:'#363b5a',rim:'#5b6189',inner:'#22253a',soup:'#f4b942',soupL:'#f9d680',fl1:'#ff6b35',fl2:'#ff9f1c',fl3:'#ffe066',log:'#8a5a3a',logD:'#6b432a',ant:'#ef6351',antD:'#cc4a3d',ink:'#232946',towel:'#f6f1e7',towelD:'#cfc7b6',white:'#ffffff',sweat:'#8fd3f4'};
+  function wrap(parent,x,y,cls,inner){var o=el('g',{transform:'translate('+x+','+y+')'},parent);var a=el('g',cls?{class:cls}:{},o);return el('g',{transform:inner||''},a);}
+  function line(g,d,color,w,cls){var a={d:d,fill:'none',stroke:color,'stroke-width':w,'stroke-linecap':'round','stroke-linejoin':'round'};if(cls)a['class']=cls;return el('path',a,g);}
+
+  // 탕에 몸 담근 개미. mood 0: 뜨끈해서 좋음(양머리 수건) / 1: 슬슬 뜨거움 / 2: 앗 뜨거
+  function soupAnt(parent,x,y,s,mood,alt){
+    var g=wrap(parent,x,y,'bob'+(alt?' b2':'')+(mood===2?' fast':''),'scale('+s+')');
+    if(mood===2){[-1,1].forEach(function(d){var a=el('g',{class:'wave'},g);line(a,'M'+(d*9)+' 6 Q'+(d*18)+' 0 '+(d*16)+' -14',C.ant,3.4);});}
+    line(g,'M-5 -9 Q-6 -19 -12 -22',C.ant,2.2);line(g,'M5 -9 Q6 -19 12 -22',C.ant,2.2);
+    el('ellipse',{cx:0,cy:0,rx:13,ry:11.5,fill:C.ant},g);
+    el('path',{d:'M-12.6 3 Q0 13 12.6 3 Q10 12 0 11.5 Q-10 12 -12.6 3Z',fill:C.antD,opacity:.55},g);
+    if(mood<2){
+      el('path',{d:'M-12.8 -3 Q-9 -13.5 0 -13.5 Q9 -13.5 12.8 -3 Q0 -8.5 -12.8 -3Z',fill:C.towel},g);
+      [-1,1].forEach(function(d){
+        el('circle',{cx:d*13.2,cy:-5.5,r:4.8,fill:C.towel},g);
+        line(g,'M'+(d*13.2)+' -5.5 m-2.2 0 a2.2 2.2 0 1 1 2.2 2.2',C.towelD,1.2);
+      });
+    }
+    if(mood===0){line(g,'M-7.2 1.2 Q-4.8 -1.8 -2.4 1.2',C.ink,1.8);line(g,'M2.4 1.2 Q4.8 -1.8 7.2 1.2',C.ink,1.8);line(g,'M-2 5.2 Q0 7.2 2 5.2',C.ink,1.5);}
+    else if(mood===1){el('ellipse',{cx:-4.6,cy:.8,rx:1.9,ry:2.4,fill:C.ink},g);el('ellipse',{cx:4.6,cy:.8,rx:1.9,ry:2.4,fill:C.ink},g);line(g,'M-2 6 L2 6',C.ink,1.5);}
+    else{el('ellipse',{cx:-4.8,cy:-.5,rx:2.3,ry:3,fill:C.ink},g);el('ellipse',{cx:4.8,cy:-.5,rx:2.3,ry:3,fill:C.ink},g);el('circle',{cx:-4.2,cy:-1.5,r:.8,fill:C.white},g);el('circle',{cx:5.4,cy:-1.5,r:.8,fill:C.white},g);el('ellipse',{cx:0,cy:6,rx:2,ry:2.5,fill:C.ink},g);}
+    if(mood>=1){el('path',{d:'M16 -9 q3 5 0 6.5 q-3 -1.5 0 -6.5Z',fill:C.sweat},g);}
+    if(mood===2){el('path',{d:'M-17 -5 q3 5 0 6.5 q-3 -1.5 0 -6.5Z',fill:C.sweat},g);}
+    el('ellipse',{cx:0,cy:12.5,rx:18,ry:5,fill:C.soup},g);
+    line(g,'M-15 10.5 Q0 6.5 15 10.5',C.soupL,1.6);
+  }
+
+  // 탕 밖 개미: 수건 두르고 두 발로 걷는 개미
+  function walker(parent,x,y,s,dir){
+    var g=wrap(parent,x,y,'walk','scale('+(s*dir)+','+s+')');
+    el('ellipse',{cx:-9,cy:15,rx:7.5,ry:6.5,fill:C.antD},g);
+    line(el('g',{class:'leg'},g),'M-2.5 20 L-3 29.5',C.antD,3.2);
+    line(el('g',{class:'leg l2'},g),'M2.5 20 L3 29.5',C.antD,3.2);
+    el('ellipse',{cx:0,cy:14,rx:6.5,ry:8,fill:C.ant},g);
+    line(g,'M1 12 Q7 16 10 11',C.ant,3);
+    line(g,'M-1 -11 Q-3 -21 -9 -23',C.ant,2.2);line(g,'M7 -11 Q10 -20 16 -21',C.ant,2.2);
+    el('ellipse',{cx:3,cy:-2,rx:12.5,ry:11,fill:C.ant},g);
+    line(g,'M-7 7.5 Q3 12 12 7',C.towel,4.2);
+    line(g,'M-5 9 L-6.5 16',C.towel,4.2);
+    line(g,'M3 -1 Q5.2 -3.8 7.4 -1',C.ink,1.8);line(g,'M10 -1 Q12 -3.8 14 -1',C.ink,1.8);
+    line(g,'M7 3 Q9 4.8 11 3',C.ink,1.4);
+  }
+
+  function flame(parent,cx,base,h,w,alt){
+    function leaf(hh,ww,fill,cls){el('path',{class:cls,d:'M'+(cx-ww)+' '+base+' Q'+(cx-ww*1.1)+' '+(base-hh*.5)+' '+(cx+ww*.15)+' '+(base-hh)+' Q'+(cx+ww*1.15)+' '+(base-hh*.45)+' '+(cx+ww)+' '+base+' Z',fill:fill},parent);}
+    leaf(h,w,C.fl1,'flame'+(alt?' f2':''));leaf(h*.68,w*.68,C.fl2,'flame'+(alt?'':' f2'));leaf(h*.36,w*.4,C.fl3,'flame'+(alt?' f2':''));
+  }
+
+  dash.draw('pot',function(box){
+    var g=rows('gauge');
+    box.replaceChildren();
+    if(!g){box.textContent='—';return;}
+    var fire=Math.max(0,Math.min(100,+g[0].fire));
+    var score=Math.max(0,Math.min(100,+g[0].score));
+    var ind=+g[0].ind_net;
+    var mood=score<50?0:score<75?1:2;
+    var svg=el('svg',{viewBox:'0 0 400 340',role:'img','aria-label':'불 세기 '+Math.round(fire)+'점, 개미탕 그림'});
+    box.appendChild(svg);
+    var defs=el('defs',{},svg);
+    var gr=el('radialGradient',{id:'gtGlow'},defs);
+    el('stop',{offset:'0%','stop-color':C.fl2,'stop-opacity':.85},gr);el('stop',{offset:'100%','stop-color':C.fl2,'stop-opacity':0},gr);
+
+    // 밤 배경
+    el('rect',{x:0,y:0,width:400,height:340,fill:C.bg},svg);
+    [[40,40,1.4,''],[96,84,1,'t2'],[150,30,1.2,''],[262,44,1,'t2'],[330,26,1.5,''],[368,92,1,'t2'],[22,130,1,'']].forEach(function(p){el('circle',{class:'tw '+p[3],cx:p[0],cy:p[1],r:p[2],fill:C.star},svg);});
+    el('rect',{x:0,y:292,width:400,height:48,fill:C.floor},svg);
+    el('circle',{cx:200,cy:296,r:170,fill:'url(#gtGlow)',opacity:.12+fire/100*.5},svg);
+
+    // 뚝배기
+    el('rect',{x:48,y:150,width:30,height:14,rx:7,fill:C.potD},svg);el('rect',{x:322,y:150,width:30,height:14,rx:7,fill:C.potD},svg);
+    el('path',{d:'M70 140 Q66 230 120 262 Q200 284 280 262 Q334 230 330 140 Z',fill:C.pot},svg);
+    el('path',{d:'M250 140 L330 140 Q334 230 280 262 Q250 272 222 275 Q282 232 250 140Z',fill:C.potD,opacity:.75},svg);
+    el('ellipse',{cx:200,cy:138,rx:138,ry:21,fill:C.rim},svg);
+    el('ellipse',{cx:200,cy:140,rx:126,ry:16,fill:C.inner},svg);
+    el('ellipse',{cx:200,cy:142,rx:120,ry:13,fill:C.soup},svg);
+    line(svg,'M120 145 Q200 153 280 145',C.soupL,2);
+
+    // 장작불
+    var fh=34+fire*.5,fw=13+fire*.14;
+    if(fire>=50){flame(svg,128,298,fh*.6,fw*.8,true);flame(svg,272,298,fh*.6,fw*.8,false);}
+    flame(svg,163,298,fh*.8,fw,false);flame(svg,237,298,fh*.8,fw,true);flame(svg,200,298,fh,fw*1.2,true);
+    el('rect',{x:134,y:292,width:132,height:11,rx:5.5,fill:C.logD,transform:'rotate(-5 200 297)'},svg);
+    el('rect',{x:134,y:292,width:132,height:11,rx:5.5,fill:C.log,transform:'rotate(5 200 297)'},svg);
+
+    // 김
+    var nSteam=fire<40?2:fire<70?3:5;
+    [[168,104,''],[236,98,'s2'],[202,90,'s3'],[134,106,'s2'],[268,104,'s3']].slice(0,nSteam).forEach(function(p){
+      var sg=el('g',{transform:'translate('+p[0]+','+p[1]+')'},svg);
+      line(sg,'M0 0 q-7 -10 0 -20 q7 -10 0 -20',C.white,4,'steam '+p[2]).setAttribute('opacity','.22');
+    });
+
+    // 탕 속 개미 (지수가 높을수록 많이)
+    var spots=[[200,127],[156,129],[244,129],[116,132],[284,132],[178,139],[223,139]];
+    var inPot=Math.max(0,Math.min(spots.length,Math.round(score/14)));
+    var ants=el('g',{},svg);
+    spots.slice(0,inPot).sort(function(a,b){return a[1]-b[1];}).forEach(function(p,i){soupAnt(ants,p[0],p[1],1.05,mood,i%2);});
+
+    // 탕 밖 개미: 순매도면 퇴장, 순매수면 입장
+    var out=ind<0;
+    walker(svg,46,260,1.05,out?-1:1);
+    walker(svg,352,260,1.05,out?1:-1);
+    walker(svg,384,264,.9,out?1:-1);
+  });
+
+})();
+</script>
+<script>gtLoad();window.addEventListener('resize',function(){clearTimeout(window.__r);window.__r=setTimeout(gtRender,200);});</script>
+</body>
+</html>
