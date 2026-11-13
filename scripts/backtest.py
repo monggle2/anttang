@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""개미탕 지수 과거 검증
+"""개미탕 지수 과거 검증 (확장판)
 
-과거 매 거래일의 개미탕 지수를 지금 공식 그대로 계산하고,
-점수 구간별로 "그날 코스피를 샀다면 1·2·3·4주 뒤 수익률"을 모아 data/backtest.json 에 쓴다.
-update.py 가 일주일에 한 번 자동으로 호출한다.
+검증 기간을 늘리기 위해 세 가지 공식을 같이 돌린다.
+  현행   : 지금 사이트 공식 그대로 (개인 순매수가 있는 2016년 이후)
+  정규화 : 시대에 따라 시장 크기가 달라지는 걸 보정 (2016년 이후)
+  장기   : 개인 순매수 없이 하락·공포·빚투만으로 (신용잔고가 있는 2000년대부터)
+보는 기간도 1~4주에서 12주, 6개월, 1년까지 늘리고,
+"끓기 시작한 날"과 "식기 시작한 날"에 샀을 때를 하락장별로 따로 본다.
+결과는 data/backtest_long.json
 """
+import bisect
 import datetime as dt
 import http.cookiejar
 import json
@@ -19,34 +24,43 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import update as u  # noqa: E402
 
-HORIZONS = (5, 10, 15, 20)          # 거래일 기준 1·2·3·4주
-BANDS = [("냉탕 (0~25)", 0, 25), ("온탕 (25~50)", 25, 50), ("끓는 중 (50~75)", 50, 75), ("개미탕 (75~100)", 75, 101)]
+VERSION = 4
+HORIZONS = (5, 10, 15, 20, 60, 120, 250)   # 1·2·3·4주, 12주, 6개월, 1년 (거래일)
+H_NAMES = ("1주", "2주", "3주", "4주", "12주", "6개월", "1년")
+BANDS = [("냉탕", 0, 25), ("온탕", 25, 50), ("끓는 중", 50, 75), ("개미탕", 75, 101)]
 FG_START = "2021-01-04"
-VERSION = 3
 SECTORS = [
-    ("반도체", [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS")]),
-    ("에너지", [("두산에너빌리티", "034020.KS"), ("한화솔루션", "009830.KS")]),
-    ("자동차", [("현대차", "005380.KS"), ("기아", "000270.KS")]),
-    ("조선", [("HD현대중공업", "329180.KS"), ("한화오션", "042660.KS"), ("삼성중공업", "010140.KS")]),
-    ("방산", [("한화에어로스페이스", "012450.KS"), ("LIG넥스원", "079550.KS")]),
-    ("2차전지", [("LG에너지솔루션", "373220.KS"), ("에코프로", "086520.KQ"), ("삼성SDI", "006400.KS")]),
-    ("인터넷", [("네이버", "035420.KS"), ("카카오", "035720.KS")]),
-    ("바이오", [("삼성바이오로직스", "207940.KS"), ("셀트리온", "068270.KS")]),
-    ("금융", [("KB금융", "105560.KS"), ("신한지주", "055550.KS")]),
+    ("반도체", ["005930.KS", "000660.KS"]), ("에너지", ["034020.KS", "009830.KS"]),
+    ("자동차", ["005380.KS", "000270.KS"]), ("조선", ["329180.KS", "042660.KS", "010140.KS"]),
+    ("방산", ["012450.KS", "079550.KS"]), ("2차전지", ["373220.KS", "086520.KQ", "006400.KS"]),
+    ("인터넷", ["035420.KS", "035720.KS"]), ("바이오", ["207940.KS", "068270.KS"]),
+    ("금융", ["105560.KS", "055550.KS"]),
 ]
 
-def yahoo_long(sym):
-    j = json.loads(u.http(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(sym)}?range=10y&interval=1d"))
+
+# ───────── 데이터 ─────────
+def _yahoo(sym, query):
+    j = json.loads(u.http(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(sym)}?{query}&interval=1d"))
     res = j["chart"]["result"][0]
     off = res["meta"].get("gmtoffset", 0)
     q = res["indicators"]["quote"][0]
     rows = {}
     for t, hi, cl in zip(res["timestamp"], q["high"], q["close"]):
-        if hi is None or cl is None:
+        if hi is None or cl is None or cl <= 0:
             continue
         d = (dt.datetime.fromtimestamp(t, dt.timezone.utc) + dt.timedelta(seconds=off)).date().isoformat()
         rows[d] = (float(hi), float(cl))
-    return sorted((d, h, c) for d, (h, c) in rows.items())
+    out = sorted((d, h, c) for d, (h, c) in rows.items())
+    if len(out) < 300:
+        raise ValueError("행이 너무 적음")
+    return out
+
+
+def yahoo_full(sym):
+    try:
+        return _yahoo(sym, "period1=852076800&period2=4102444800")   # 1997년부터
+    except Exception:  # noqa: BLE001
+        return _yahoo(sym, "range=10y")
 
 
 def fg_history():
@@ -54,17 +68,15 @@ def fg_history():
                           {"Referer": "https://edition.cnn.com/", "Origin": "https://edition.cnn.com"}))
     out = {}
     for p in j["fear_and_greed_historical"]["data"]:
-        d = dt.datetime.fromtimestamp(p["x"] / 1000, dt.timezone.utc).date().isoformat()
-        out[d] = float(p["y"])
+        out[dt.datetime.fromtimestamp(p["x"] / 1000, dt.timezone.utc).date().isoformat()] = float(p["y"])
     if len(out) < 200:
         raise ValueError("공포탐욕 과거 값이 너무 적음")
     return out
 
 
 def investor_history(market):
-    """다음 금융에서 가능한 만큼 과거로 거슬러 올라간다. 날짜→억원"""
     out = {}
-    for page in range(1, 120):
+    for page in range(1, 150):
         j = json.loads(u.http(f"https://finance.daum.net/api/investor/{market}/days?page={page}&perPage=100&pagination=true",
                               {"Referer": f"https://finance.daum.net/domestic/investors/{market}"}))
         got = {}
@@ -82,214 +94,284 @@ def investor_history(market):
 
 
 def credit_history(anchor_eok):
-    """금융투자협회 신용공여 잔고 추이. 날짜→억원. anchor(최근 실제 값)로 단위를 맞춘다."""
+    """금융투자협회 신용공여 잔고 추이를 3년씩 끊어서 받는다. 날짜→억원"""
     screen = "https://freesis.kofia.or.kr/stat/FreeSIS.do?parentDivId=MSIS10000000000000&serviceId=STATSCU0100000070"
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     base = {"User-Agent": u.UA, "Accept-Language": "ko-KR,ko;q=0.9"}
     op.open(urllib.request.Request(screen, headers=base), timeout=30).read()
-    body = json.dumps({"dmSearch": {"tmpV40": "1000000", "tmpV41": "1", "tmpV1": "D", "tmpV45": "20200101",
-                                    "tmpV46": dt.datetime.now(u.KST).strftime("%Y%m%d"),
-                                    "OBJ_NM": "STATSCU0100000070BO"}}).encode()
-    req = urllib.request.Request("https://freesis.kofia.or.kr/meta/getMetaDataList.do", data=body, headers={
-        **base, "Content-Type": "application/json; charset=UTF-8", "Accept": "application/json, text/javascript, */*",
-        "X-Requested-With": "XMLHttpRequest", "Referer": screen, "Origin": "https://freesis.kofia.or.kr"})
-    j = json.loads(op.open(req, timeout=40).read().decode("utf-8", "replace"))
-    rows = j.get("ds1") or next((v for v in j.values() if isinstance(v, list) and v and isinstance(v[0], dict)), [])
-    raw = {}
-    for r in rows:
-        d = str(r.get("TMPV1", "")).replace("/", "").replace("-", "")
+
+    def chunk(a, b):
+        body = json.dumps({"dmSearch": {"tmpV40": "1000000", "tmpV41": "1", "tmpV1": "D", "tmpV45": a, "tmpV46": b,
+                                        "OBJ_NM": "STATSCU0100000070BO"}}).encode()
+        req = urllib.request.Request("https://freesis.kofia.or.kr/meta/getMetaDataList.do", data=body, headers={
+            **base, "Content-Type": "application/json; charset=UTF-8", "Accept": "application/json, text/javascript, */*",
+            "X-Requested-With": "XMLHttpRequest", "Referer": screen, "Origin": "https://freesis.kofia.or.kr"})
+        last = None
+        for k in range(4):
+            try:
+                j = json.loads(op.open(req, timeout=40).read().decode("utf-8", "replace"))
+                rows = j.get("ds1") or next((v for v in j.values() if isinstance(v, list) and v and isinstance(v[0], dict)), [])
+                got = {}
+                for r in rows:
+                    d = str(r.get("TMPV1", "")).replace("/", "").replace("-", "")
+                    try:
+                        v = float(str(r.get("TMPV3", "")).replace(",", "")) + float(str(r.get("TMPV4", "")).replace(",", ""))
+                    except ValueError:
+                        continue
+                    if len(d) == 8 and v > 0:
+                        got[f"{d[:4]}-{d[4:6]}-{d[6:]}"] = v
+                return got
+            except Exception as e:  # noqa: BLE001
+                last = e
+                time.sleep(1.5 * (k + 1))
+        raise RuntimeError(f"{a}~{b}: {last}")
+
+    raw, failed = {}, []
+    this_year = dt.datetime.now(u.KST).year
+    for y in range(1998, this_year + 1, 3):
         try:
-            v = float(str(r.get("TMPV3", "")).replace(",", "")) + float(str(r.get("TMPV4", "")).replace(",", ""))
-        except ValueError:
-            continue
-        if len(d) == 8 and v > 0:
-            raw[f"{d[:4]}-{d[4:6]}-{d[6:]}"] = v
+            raw.update(chunk(f"{y}0101", f"{min(y + 2, this_year)}1231"))
+        except Exception as e:  # noqa: BLE001
+            failed.append(str(e)[:80])
+        time.sleep(0.4)
     if len(raw) < 300:
-        raise ValueError(f"신용잔고 과거 값이 부족함({len(raw)}일), 응답 키: {list(j)[:5]}, 첫 행: {str(rows[:1])[:200]}")
+        raise ValueError(f"신용잔고 과거 값이 부족함({len(raw)}일) {failed[:2]}")
     latest = raw[max(raw)]
     factor = 10 ** round(math.log10(anchor_eok / latest))
     if not 0.8 <= latest * factor / anchor_eok <= 1.25:
         raise ValueError(f"신용잔고 단위를 맞추지 못함(최근 {latest}, 기준 {anchor_eok})")
-    return {d: v * factor for d, v in raw.items()}
+    return {d: v * factor for d, v in raw.items()}, failed
 
 
-def asof(series_dates, series_vals, d):
-    """d 이전(미포함) 가장 최근 값"""
-    lo, hi = 0, len(series_dates)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if series_dates[mid] < d:
-            lo = mid + 1
-        else:
-            hi = mid
-    return series_vals[lo - 1] if lo else None
+# ───────── 도구 ─────────
+def before(dates, d):
+    """d 이전(미포함) 마지막 위치. 없으면 -1"""
+    return bisect.bisect_left(dates, d) - 1
+
+
+def stat(v):
+    if not v:
+        return None
+    return [len(v), round(statistics.fmean(v), 1), round(100 * sum(1 for a in v if a > 0) / len(v)), round(min(v), 1)]
 
 
 def main():
-    notes, errors = [], {}
+    errors, notes = {}, []
 
     def attempt(name, fn):
         try:
             return fn()
         except Exception as e:  # noqa: BLE001
-            errors[name] = str(e)[:400]
+            errors[name] = str(e)[:300]
             return None
 
-    kospi = attempt("코스피", lambda: yahoo_long("^KS11"))
-    nasdaq = attempt("나스닥", lambda: yahoo_long("^IXIC"))
-    fg = attempt("공포탐욕", fg_history)
+    kospi = attempt("코스피", lambda: yahoo_full("^KS11"))
+    nasdaq = attempt("나스닥", lambda: yahoo_full("^IXIC"))
+    vix = attempt("VIX", lambda: yahoo_full("^VIX"))
+    fg = attempt("공포탐욕", fg_history) or {}
     inv_k = attempt("개인:코스피", lambda: investor_history("KOSPI"))
     inv_q = attempt("개인:코스닥", lambda: investor_history("KOSDAQ"))
-    store = u.load("store.json", {})
-    anchor = store.get("credit", {}).get("value", 265_000)
-    credit = attempt("신용잔고", lambda: credit_history(anchor))
+    anchor = u.load("store.json", {}).get("credit", {}).get("value", 265_000)
+    cr = attempt("신용잔고", lambda: credit_history(anchor))
+    credit, cr_failed = cr if cr else ({}, [])
+    if cr_failed:
+        notes.append(f"신용잔고 일부 구간 누락 {len(cr_failed)}건")
 
-    out = {"at": dt.datetime.now(u.KST).isoformat(timespec="seconds"), "errors": errors, "ok": False}
-    if not (kospi and nasdaq and fg and inv_k and inv_q):
-        u.save("backtest.json", out)
-        print("과거 검증: 필수 데이터 부족", errors)
+    now = dt.datetime.now(u.KST).isoformat(timespec="seconds")
+    if not (kospi and nasdaq and vix):
+        u.save("backtest.json", {"ok": False, "v": VERSION, "at": now, "errors": errors})
         return 1
-    if not credit:
-        notes.append("신용잔고 과거 값을 받지 못해 물린 개미는 개인 누적 순매수만으로 계산")
 
-    inv_dates = sorted(set(inv_k) & set(inv_q))
-    inv_min = inv_dates[0]
-    pref, acc = {}, 0.0
-    for d in inv_dates:
-        acc += inv_k[d] + inv_q[d]
-        pref[d] = acc
-    inv_d = inv_dates
-    inv_p = [pref[d] for d in inv_dates]
-
-    n_d = [r[0] for r in nasdaq]
-    fg_d = sorted(fg)
-    fg_v = [fg[d] for d in fg_d]
-    cr_d = sorted(credit) if credit else []
-    cr_v = [credit[d] for d in cr_d]
-
-    days = []
     kd = [r[0] for r in kospi]
-    for i, (d, hi, cl) in enumerate(kospi):
-        if d < fg_d[0]:
+    kcl = [r[2] for r in kospi]
+    n = len(kospi)
+    # 코스피 1년 고점
+    peak, peak_date = [0.0] * n, [""] * n
+    for i in range(n):
+        start = (dt.date.fromisoformat(kd[i]) - dt.timedelta(days=365)).isoformat()
+        j = max(0, i - 270)
+        best, bd = 0.0, ""
+        for k in range(j, i + 1):
+            if kd[k] >= start and kospi[k][1] > best:
+                best, bd = kospi[k][1], kd[k]
+        peak[i], peak_date[i] = best, bd
+    # 나스닥 1년 고점 대비
+    nd = [r[0] for r in nasdaq]
+    ndd = [0.0] * len(nasdaq)
+    for i in range(len(nasdaq)):
+        start = (dt.date.fromisoformat(nd[i]) - dt.timedelta(days=365)).isoformat()
+        hi = max(nasdaq[k][1] for k in range(max(0, i - 270), i + 1) if nd[k] >= start)
+        ndd[i] = nasdaq[i][2] / hi - 1
+    # 공포: CNN 값이 없는 기간은 VIX로 대신한다(겹치는 기간의 분포를 맞춰서 환산)
+    vd = [r[0] for r in vix]
+    vcl = [r[2] for r in vix]
+    fgd = sorted(fg)
+    pairs = []
+    for d in fgd:
+        k = before(vd, d)
+        if k >= 0:
+            pairs.append((vcl[k], 100 - fg[d]))
+    if len(pairs) > 200:
+        vs = sorted(p[0] for p in pairs)
+        fs = sorted(p[1] for p in pairs)
+
+        def fear_proxy(v):
+            pos = bisect.bisect_left(vs, v)
+            return fs[min(pos, len(fs) - 1)]
+        mv, mf = statistics.fmean(p[0] for p in pairs), statistics.fmean(p[1] for p in pairs)
+        cov = sum((a - mv) * (b - mf) for a, b in pairs)
+        corr = cov / math.sqrt(sum((a - mv) ** 2 for a, _ in pairs) * sum((b - mf) ** 2 for _, b in pairs))
+    else:
+        pts = [(10, 0), (13, 20), (17, 50), (22, 70), (28, 85), (40, 100)]
+
+        def fear_proxy(v):
+            if v <= pts[0][0]:
+                return 0.0
+            for (a, fa), (b, fb) in zip(pts, pts[1:]):
+                if v <= b:
+                    return fa + (fb - fa) * (v - a) / (b - a)
+            return 100.0
+        corr = None
+
+    # 개인 누적 순매수
+    inv_ok = bool(inv_k and inv_q)
+    if inv_ok:
+        idates = sorted(set(inv_k) & set(inv_q))
+        acc, ipref = 0.0, []
+        for d in idates:
+            acc += inv_k[d] + inv_q[d]
+            ipref.append(acc)
+        inv_min = idates[0]
+    crd = sorted(credit)
+    crv = [credit[d] for d in crd]
+
+    # 날짜별 재료
+    rows = []
+    trapped_hist, cred_hist = [], []
+    for i in range(n):
+        d = kd[i]
+        jn = before(nd, d)
+        jv = before(vd, d)
+        if jn < 250 or jv < 0 or i < 250:
             continue
-        start = (dt.date.fromisoformat(d) - dt.timedelta(days=365)).isoformat()
-        win = [r for r in kospi[max(0, i - 270):i + 1] if r[0] >= start]
-        peak_date, peak = max(((r[0], r[1]) for r in win), key=lambda x: x[1])
-        if peak_date < inv_min:
-            continue
-        # 나스닥: 전날까지의 1년 고점 대비
-        j = 0
-        lo, hi2 = 0, len(n_d)
-        while lo < hi2:
-            mid = (lo + hi2) // 2
-            if n_d[mid] < d:
-                lo = mid + 1
-            else:
-                hi2 = mid
-        j = lo - 1
-        if j < 200:
-            continue
-        nwin = [r for r in nasdaq[max(0, j - 270):j + 1] if r[0] >= start]
-        n_dd = nasdaq[j][2] / max(r[1] for r in nwin) - 1
-        f = asof(fg_d, fg_v, d)
-        if f is None:
-            continue
-        before_peak = asof(inv_d, inv_p, peak_date) or 0.0
-        upto = asof(inv_d, inv_p, (dt.date.fromisoformat(d) + dt.timedelta(days=1)).isoformat())
-        if upto is None:
-            continue
-        cum = upto - before_peak
-        fire = (u.W_FIRE[0] * u.clip01(-(cl / peak - 1) / u.FULL_KOSPI_DROP) * 100 + u.W_FIRE[1] * (100 - f)
-                + u.W_FIRE[2] * u.clip01(-n_dd / u.FULL_NASDAQ_DROP) * 100)
-        s_trap = u.clip01(cum / u.FULL_TRAPPED) * 100
-        c = asof(cr_d, cr_v, d) if credit else None
+        k_dd = kcl[i] / peak[i] - 1
+        proxy = fear_proxy(vcl[jv])
+        jf = before(fgd, d) if fgd else -1
+        cnn = 100 - fg[fgd[jf]] if jf >= 0 and (dt.date.fromisoformat(d) - dt.date.fromisoformat(fgd[jf])).days <= 10 else None
+        base = u.W_FIRE[0] * u.clip01(-k_dd / u.FULL_KOSPI_DROP) * 100 + u.W_FIRE[2] * u.clip01(-ndd[jn] / u.FULL_NASDAQ_DROP) * 100
+        fire_live = base + u.W_FIRE[1] * (cnn if cnn is not None else proxy)
+        fire_proxy = base + u.W_FIRE[1] * proxy
+
+        jc = before(crd, d)
+        c = crv[jc] if jc >= 0 else None
+        m_abs = m_norm = None
         if c is not None:
-            pot = u.W_POT[0] * s_trap + u.W_POT[1] * u.clip01((c - u.CREDIT_ZERO) / (u.CREDIT_FULL - u.CREDIT_ZERO)) * 100
-        else:
-            pot = s_trap
-        score = math.sqrt(max(fire, 0) * max(pot, 0))
-        fwd = [(kospi[i + h][2] / cl - 1) * 100 if i + h < len(kospi) else None for h in HORIZONS]
-        days.append({"date": d, "score": score, "fwd": fwd, "i": i})
+            m_abs = u.clip01((c - u.CREDIT_ZERO) / (u.CREDIT_FULL - u.CREDIT_ZERO)) * 100
+            lo = max(0, jc - 750)
+            if jc - lo >= 250:
+                m_norm = u.clip01((c / max(crv[lo:jc + 1]) - 0.6) / 0.4) * 100
 
-    if len(days) < 200:
-        out["errors"]["계산"] = f"계산 가능한 날이 너무 적음({len(days)}일)"
-        u.save("backtest.json", out)
-        return 1
+        t_abs = t_norm = None
+        if inv_ok and peak_date[i] >= inv_min:
+            a = before(idates, peak_date[i])
+            b = bisect.bisect_right(idates, d) - 1
+            if b >= 0:
+                cum = max(0.0, ipref[b] - (ipref[a] if a >= 0 else 0.0))
+                t_abs = u.clip01(cum / u.FULL_TRAPPED) * 100
+                win = trapped_hist[-750:]
+                t_norm = (100 * sum(1 for w in win if w <= cum) / len(win)) if len(win) >= 120 and cum > 0 else (0.0 if cum <= 0 else t_abs)
+                trapped_hist.append(cum)
 
-    def stats(sel):
-        cols = []
-        for hi_, _ in enumerate(HORIZONS):
-            v = [x["fwd"][hi_] for x in sel if x["fwd"][hi_] is not None]
-            if not v:
-                cols.append(None)
+        def sc(fire, pot):
+            return math.sqrt(max(fire, 0) * max(pot, 0)) if pot is not None else None
+
+        s_now = sc(fire_live, u.W_POT[0] * t_abs + u.W_POT[1] * m_abs) if t_abs is not None and m_abs is not None else None
+        s_norm = sc(fire_live, u.W_POT[0] * t_norm + u.W_POT[1] * m_norm) if t_norm is not None and m_norm is not None else None
+        s_long = sc(fire_proxy, m_norm)
+        rows.append((i, d, s_now, s_norm, s_long))
+
+    def fwd(i, h):
+        return (kcl[i + h] / kcl[i] - 1) * 100 if i + h < n else None
+
+    def analyse(col, label):
+        sel = [(r[0], r[1], r[col]) for r in rows if r[col] is not None]
+        if len(sel) < 200:
+            return None
+        res = {"name": label, "from": sel[0][1], "to": sel[-1][1], "days": len(sel), "bands": [], "all": None}
+
+        def table(sub):
+            return [stat([w for w in (fwd(i, h) for i, _, _ in sub) if w is not None]) for h in HORIZONS]
+        for bn, lo, hi in BANDS:
+            sub = [x for x in sel if lo <= x[2] < hi]
+            res["bands"].append({"band": bn, "days": len(sub), "h": table(sub)})
+        res["all"] = table(sel)
+
+        # 하락장(개미탕 구간)별: 끓기 시작한 날 vs 식기 시작한 날
+        eps, cur = [], None
+        for i, d, s in sel:
+            if s >= 75:
+                if cur and i - cur["e"] <= 20:
+                    cur["e"], cur["ed"], cur["n"] = i, d, cur["n"] + 1
+                    cur["max"] = max(cur["max"], s)
+                else:
+                    cur = {"s": i, "sd": d, "e": i, "ed": d, "n": 1, "max": s}
+                    eps.append(cur)
+        ep_out, hs = [], (20, 60, 120, 250)
+        for e in eps:
+            if e["n"] < 3:
                 continue
-            cols.append({"n": len(v), "mean": round(statistics.fmean(v), 2), "median": round(statistics.median(v), 2),
-                         "win": round(100 * sum(1 for a in v if a > 0) / len(v)), "worst": round(min(v), 1),
-                         "best": round(max(v), 1)})
-        episodes, last = 0, None
-        for x in sel:
-            if last is None or x["i"] - last > 20:
-                episodes += 1
-            last = x["i"]
-        return {"days": len(sel), "episodes": episodes, "h": cols}
-
-    bands = []
-    for name, lo, hi_ in BANDS:
-        sel = [x for x in days if lo <= x["score"] < hi_]
-        bands.append({"name": name, "lo": lo, **stats(sel)})
-    out.update({"ok": True, "from": days[0]["date"], "to": days[-1]["date"], "total_days": len(days),
-                "bands": bands, "all": stats(days), "notes": notes, "credit_used": bool(credit),
-                "investor_from": inv_min,
-                "monthly": [{"date": x["date"], "score": round(x["score"], 1)} for x in days[::5]]})
-    out["v"] = VERSION
-    out.pop("monthly", None)
-
-    # 섹터별: 같은 날 그 섹터 대장주들을 똑같은 비중으로 샀다면
-    groups = [(b[0], [x for x in days if b[1] <= x["score"] < b[2]]) for b in BANDS] + [("전체", days)]
-
-    def summarize(fwd_of):
-        res = []
-        for bname, sel in groups:
-            cols = []
-            for hi_ in range(len(HORIZONS)):
-                v = [w for w in (fwd_of(x["date"], hi_) for x in sel) if w is not None]
-                cols.append({"n": len(v), "mean": round(statistics.fmean(v), 1),
-                             "win": round(100 * sum(1 for a in v if a > 0) / len(v)),
-                             "worst": round(min(v), 1)} if v else None)
-            res.append({"name": bname, "h": cols})
+            x = e["e"] + 1
+            ep_out.append({"start": e["sd"], "end": e["ed"], "days": e["n"], "max": round(e["max"]),
+                           "drop_in": round((kcl[e["e"]] / kcl[e["s"]] - 1) * 100, 1),
+                           "from_start": [None if fwd(e["s"], h) is None else round(fwd(e["s"], h), 1) for h in hs],
+                           "from_exit": [None if x >= n or fwd(x, h) is None else round(fwd(x, h), 1) for h in hs]})
+        res["episodes"] = ep_out
+        res["episode_avg"] = {
+            "from_start": [stat([e["from_start"][k] for e in ep_out if e["from_start"][k] is not None]) for k in range(4)],
+            "from_exit": [stat([e["from_exit"][k] for e in ep_out if e["from_exit"][k] is not None]) for k in range(4)]}
         return res
 
+    variants = [v for v in (analyse(2, "현행 공식"), analyse(3, "정규화 공식"), analyse(4, "장기 공식(개인 순매수 제외)")) if v]
+
+    # 섹터: 정규화 공식 기준, 4주·12주
     sectors = []
-    for sname, members in SECTORS:
-        tables = []
-        for name, sym in members:
-            try:
-                rows = yahoo_long(sym)
-                pos = {r[0]: k for k, r in enumerate(rows)}
-                tables.append((name, rows, pos))
-            except Exception as e:  # noqa: BLE001
-                errors["종목:" + name] = str(e)[:200]
-            time.sleep(0.5)
-        if not tables:
-            continue
+    sel = [(r[0], r[1], r[3]) for r in rows if r[3] is not None]
+    if len(sel) >= 200:
+        for sname, syms in SECTORS:
+            tabs = []
+            for sym in syms:
+                try:
+                    rr = _yahoo(sym, "range=10y")
+                    tabs.append(([x[0] for x in rr], [x[2] for x in rr]))
+                except Exception as e:  # noqa: BLE001
+                    errors["종목:" + sym] = str(e)[:120]
+                time.sleep(0.4)
+            if not tabs:
+                continue
 
-        def one(rows, pos, d, hi_):
-            k = pos.get(d)
-            h = HORIZONS[hi_]
-            return (rows[k + h][2] / rows[k][2] - 1) * 100 if k is not None and k + h < len(rows) else None
+            def sfwd(d, h, tabs=tabs):
+                v = []
+                for ds, cs in tabs:
+                    k = bisect.bisect_left(ds, d)
+                    if k < len(ds) and ds[k] == d and k + h < len(ds):
+                        v.append((cs[k + h] / cs[k] - 1) * 100)
+                return statistics.fmean(v) if v else None
+            item = {"sector": sname, "bands": []}
+            for bn, lo, hi in BANDS + [("전체", 0, 101)]:
+                sub = [x for x in sel if lo <= x[2] < hi]
+                item["bands"].append({"band": bn, "h": [stat([w for w in (sfwd(d, h) for _, d, _ in sub) if w is not None])
+                                                        for h in (20, 60)]})
+            sectors.append(item)
 
-        def sector_fwd(d, hi_, tables=tables):
-            v = [w for w in (one(r, p, d, hi_) for _, r, p in tables) if w is not None]
-            return statistics.fmean(v) if v else None
-
-        sectors.append({"sector": sname, "bands": summarize(sector_fwd),
-                        "stocks": [{"name": n, "bands": summarize(lambda d, hi_, r=r, p=p: one(r, p, d, hi_))}
-                                   for n, r, p in tables]})
-    u.save("backtest_stocks.json", {"at": out["at"], "from": out["from"], "to": out["to"],
-                                    "sectors": sectors, "errors": errors})
-
-    u.save("backtest.json", out)
-    print(f"과거 검증 완료: {out['from']} ~ {out['to']}, {len(days)}일", errors or "")
+    out = {"at": now, "v": VERSION, "horizons": H_NAMES, "stat_fields": ["일수", "평균%", "상승비율%", "최악%"],
+           "episode_horizons": ["4주", "12주", "6개월", "1년"], "fear_proxy_corr": None if corr is None else round(corr, 2),
+           "credit_from": crd[0] if crd else None, "investor_from": inv_min if inv_ok else None,
+           "variants": variants, "sectors": sectors, "notes": notes, "errors": errors}
+    os.makedirs(u.DATA, exist_ok=True)
+    with open(os.path.join(u.DATA, "backtest_long.json"), "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    u.save("backtest.json", {"ok": bool(variants), "v": VERSION, "at": now, "errors": errors})
+    print("과거 검증(확장) 완료:", [(v["name"], v["from"], v["days"]) for v in variants], errors or "")
     return 0
 
 
