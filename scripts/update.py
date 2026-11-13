@@ -9,7 +9,7 @@
   지수           Yahoo Finance 차트 API (코스피·코스닥은 실패 시 네이버 금융)
   신용융자 잔고   금융투자협회 FreeSIS 메인 화면
   공포탐욕지수    CNN
-  개인 순매수     네이버 금융 투자자별 매매동향
+  개인 순매수     다음 금융 (실패 시 네이버 증권)
 어느 출처가 실패해도 직전 값을 유지하고, 결과는 data/status.json 에 남긴다.
 """
 import datetime as dt
@@ -21,7 +21,6 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from html.parser import HTMLParser
 
 # ───────── 설정 (숫자만 바꾸면 됨) ─────────
 FULL_KOSPI_DROP = 0.40      # 코스피 고점 대비 −40% 이상이면 만점
@@ -168,89 +167,60 @@ def fear_greed():
     return round(s, 1)
 
 
-# ───────── 개인 순매수 (네이버 금융) ─────────
-class _Rows(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.rows, self._row, self._cell = [], None, None
-
-    def _end_cell(self):
-        if self._cell is not None and self._row is not None:
-            self._row.append(" ".join("".join(self._cell).split()))
-        self._cell = None
-
-    def _end_row(self):
-        self._end_cell()
-        if self._row:
-            self.rows.append(self._row)
-        self._row = None
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "tr":
-            self._end_row()
-            self._row = []
-        elif tag in ("td", "th") and self._row is not None:
-            self._end_cell()
-            self._cell = []
-
-    def handle_endtag(self, tag):
-        if tag in ("td", "th"):
-            self._end_cell()
-        elif tag in ("tr", "table"):
-            self._end_row()
-
-    def handle_data(self, data):
-        if self._cell is not None:
-            self._cell.append(data)
-
-
-def investor_page(sosok, bizdate, page):
-    html = http(f"https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate={bizdate}&sosok={sosok}&page={page}",
-                {"Referer": "https://finance.naver.com/sise/sise_trans_style.naver"})
-    p = _Rows()
-    p.feed(html)
-    out, checked, good = {}, 0, 0
-    for r in p.rows:
-        m = re.fullmatch(r"(\d{2}|\d{4})\.(\d{2})\.(\d{2})", r[0]) if r else None
-        if not m:
-            continue
-        n = [num(c) for c in r[1:]]
-        if len(n) < 10 or any(v is None for v in n[:10]):
-            continue
-        y = m.group(1)
-        d = f"{'20' + y if len(y) == 2 else y}-{m.group(2)}-{m.group(3)}"
-        # 자기 검증: 개인 + 외국인 + 기관계 + 기타법인 ≈ 0 이어야 열 위치가 맞는 것
-        checked += 1
-        if abs(n[0] + n[1] + n[2] + n[9]) <= 0.03 * (abs(n[0]) + abs(n[1]) + abs(n[2]) + abs(n[9])) + 30:
-            good += 1
-        out[d] = n[0]
-    if not out:
-        raise ValueError("표에서 행을 찾지 못함")
-    if good < 0.7 * checked:
-        raise ValueError("표 구조가 예상과 다름(합계 검증 실패)")
-    return out
-
-
-def collect_investor(sosok, known, until):
-    """known(날짜→억원)을 최신 값으로 채운다. until 날짜까지 거슬러 올라감."""
-    bizdate = dt.datetime.now(KST).strftime("%Y%m%d")
+# ───────── 개인 순매수 (다음 금융, 실패 시 네이버 증권) ─────────
+def daum_investor(market, known, until):
+    """known(날짜→억원)을 채운다. until 날짜까지 거슬러 올라감."""
     newest_known = max(known) if known else ""
     covered = bool(known) and min(known) <= until
-    for page in range(1, 60):
-        got = investor_page(sosok, bizdate, page)
+    for page in range(1, 40):
+        j = json.loads(http(f"https://finance.daum.net/api/investor/{market}/days?page={page}&perPage=30&pagination=true",
+                            {"Referer": f"https://finance.daum.net/domestic/investors/{market}"}))
+        got = {}
+        for r in j.get("data") or []:
+            v = r.get("individualStraightPurchasePrice")
+            d = str(r.get("date", ""))[:10]
+            if v is None or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
+                continue
+            if abs(v) > 3e13:  # 하루 30조 넘는 값은 단위가 바뀐 것
+                raise ValueError("개인 순매수 값이 범위를 벗어남")
+            got[d] = round(v / 1e8)
+        if not got:
+            if page == 1:
+                raise ValueError("다음 금융 응답에 데이터가 없음")
+            break
+        fresh = any(d not in known for d in got)
         known.update(got)
         oldest = min(got)
-        if oldest <= until or (covered and oldest <= newest_known):
+        if oldest <= until or (covered and oldest <= newest_known) or (page > 1 and not fresh):
             break
         time.sleep(0.4)
     return known
 
 
-def probe(url, headers=None):
+def naver_investor(market, known):
+    """네이버 증권 새 주소. 최근 날짜만 보충한다(개인 = 8000)."""
+    j = json.loads(http(f"https://stock.naver.com/api/domestic/market/trend/daily?marketType={market}",
+                        {"Referer": "https://stock.naver.com/"}))
+    n = 0
+    for row in j.get("content") or []:
+        d = str(row.get("bizdate", ""))
+        for a in row.get("netAmounts") or []:
+            if str(a.get("investorGubun")) == "8000" and len(d) == 8:
+                known[f"{d[:4]}-{d[4:6]}-{d[6:]}"] = round(float(a["diffValue"]) / 1e8)
+                n += 1
+    if not n:
+        raise ValueError("네이버 증권 응답에 개인 값이 없음")
+    return known
+
+
+def collect_investor(market, known, until):
     try:
-        return {"ok": True, "sample": http(url, headers, tries=1)[:400]}
-    except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": str(e)[:200]}
+        return daum_investor(market, known, until)
+    except Exception as e1:  # noqa: BLE001
+        try:
+            return naver_investor(market, known)
+        except Exception as e2:  # noqa: BLE001
+            raise RuntimeError(f"다음: {e1} / 네이버: {e2}")
 
 
 # ───────── 계산 ─────────
@@ -337,8 +307,8 @@ def main():
     # 4) 개인 순매수 (고점 이후 누적)
     inv = store["investor"]
     ok_all = True
-    for key, sosok in (("kospi", "01"), ("kosdaq", "02")):
-        r = attempt(f"개인 순매수:{key}", lambda kk=key, ss=sosok: collect_investor(ss, inv[kk], peak_date))
+    for key, market in (("kospi", "KOSPI"), ("kosdaq", "KOSDAQ")):
+        r = attempt(f"개인 순매수:{key}", lambda kk=key, mm=market: collect_investor(mm, inv[kk], peak_date))
         ok_all = ok_all and r is not None
     seed = store["seed"]
     full = all(inv[m] and min(inv[m]) <= peak_date for m in ("kospi", "kosdaq"))
@@ -350,10 +320,6 @@ def main():
         estimated = True
     if not ok_all:
         stale.append("개인 순매수")
-        status["probe:naver_new"] = probe("https://stock.naver.com/api/domestic/market/trend/daily?marketType=KOSPI",
-                                          {"Referer": "https://stock.naver.com/"})
-        status["probe:daum"] = probe("https://finance.daum.net/api/investor/KOSPI/days?page=1&perPage=5&pagination=true",
-                                     {"Referer": "https://finance.daum.net/domestic/investors/KOSPI"})
     ind_today = sum(inv[m].get(date, 0) for m in ("kospi", "kosdaq"))
     if not any(date in inv[m] for m in ("kospi", "kosdaq")):
         ind_today = store.get("ind_today", 0)
