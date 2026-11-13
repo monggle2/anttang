@@ -361,13 +361,14 @@ def main():
 
     # 과거 검증은 일주일에 한 번(실패했으면 다음 실행 때 다시)
     bt = load("backtest.json", {})
-    if not bt.get("ok") or bt.get("at", "")[:10] < (now.date() - dt.timedelta(days=7)).isoformat():
-        try:
-            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-            import backtest
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import backtest
+        if (not bt.get("ok") or bt.get("v") != backtest.VERSION
+                or bt.get("at", "")[:10] < (now.date() - dt.timedelta(days=7)).isoformat()):
             backtest.main()
-        except Exception as e:  # noqa: BLE001
-            print("과거 검증 실패:", e)
+    except Exception as e:  # noqa: BLE001
+        print("과거 검증 실패:", e)
     return 0
 
 

@@ -22,7 +22,18 @@ import update as u  # noqa: E402
 HORIZONS = (5, 10, 15, 20)          # 거래일 기준 1·2·3·4주
 BANDS = [("냉탕 (0~25)", 0, 25), ("온탕 (25~50)", 25, 50), ("끓는 중 (50~75)", 50, 75), ("개미탕 (75~100)", 75, 101)]
 FG_START = "2021-01-04"
-
+VERSION = 3
+SECTORS = [
+    ("반도체", [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS")]),
+    ("에너지", [("두산에너빌리티", "034020.KS"), ("한화솔루션", "009830.KS")]),
+    ("자동차", [("현대차", "005380.KS"), ("기아", "000270.KS")]),
+    ("조선", [("HD현대중공업", "329180.KS"), ("한화오션", "042660.KS"), ("삼성중공업", "010140.KS")]),
+    ("방산", [("한화에어로스페이스", "012450.KS"), ("LIG넥스원", "079550.KS")]),
+    ("2차전지", [("LG에너지솔루션", "373220.KS"), ("에코프로", "086520.KQ"), ("삼성SDI", "006400.KS")]),
+    ("인터넷", [("네이버", "035420.KS"), ("카카오", "035720.KS")]),
+    ("바이오", [("삼성바이오로직스", "207940.KS"), ("셀트리온", "068270.KS")]),
+    ("금융", [("KB금융", "105560.KS"), ("신한지주", "055550.KS")]),
+]
 
 def yahoo_long(sym):
     j = json.loads(u.http(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(sym)}?range=10y&interval=1d"))
@@ -230,6 +241,53 @@ def main():
                 "bands": bands, "all": stats(days), "notes": notes, "credit_used": bool(credit),
                 "investor_from": inv_min,
                 "monthly": [{"date": x["date"], "score": round(x["score"], 1)} for x in days[::5]]})
+    out["v"] = VERSION
+    out.pop("monthly", None)
+
+    # 섹터별: 같은 날 그 섹터 대장주들을 똑같은 비중으로 샀다면
+    groups = [(b[0], [x for x in days if b[1] <= x["score"] < b[2]]) for b in BANDS] + [("전체", days)]
+
+    def summarize(fwd_of):
+        res = []
+        for bname, sel in groups:
+            cols = []
+            for hi_ in range(len(HORIZONS)):
+                v = [w for w in (fwd_of(x["date"], hi_) for x in sel) if w is not None]
+                cols.append({"n": len(v), "mean": round(statistics.fmean(v), 1),
+                             "win": round(100 * sum(1 for a in v if a > 0) / len(v)),
+                             "worst": round(min(v), 1)} if v else None)
+            res.append({"name": bname, "h": cols})
+        return res
+
+    sectors = []
+    for sname, members in SECTORS:
+        tables = []
+        for name, sym in members:
+            try:
+                rows = yahoo_long(sym)
+                pos = {r[0]: k for k, r in enumerate(rows)}
+                tables.append((name, rows, pos))
+            except Exception as e:  # noqa: BLE001
+                errors["종목:" + name] = str(e)[:200]
+            time.sleep(0.5)
+        if not tables:
+            continue
+
+        def one(rows, pos, d, hi_):
+            k = pos.get(d)
+            h = HORIZONS[hi_]
+            return (rows[k + h][2] / rows[k][2] - 1) * 100 if k is not None and k + h < len(rows) else None
+
+        def sector_fwd(d, hi_, tables=tables):
+            v = [w for w in (one(r, p, d, hi_) for _, r, p in tables) if w is not None]
+            return statistics.fmean(v) if v else None
+
+        sectors.append({"sector": sname, "bands": summarize(sector_fwd),
+                        "stocks": [{"name": n, "bands": summarize(lambda d, hi_, r=r, p=p: one(r, p, d, hi_))}
+                                   for n, r, p in tables]})
+    u.save("backtest_stocks.json", {"at": out["at"], "from": out["from"], "to": out["to"],
+                                    "sectors": sectors, "errors": errors})
+
     u.save("backtest.json", out)
     print(f"과거 검증 완료: {out['from']} ~ {out['to']}, {len(days)}일", errors or "")
     return 0
