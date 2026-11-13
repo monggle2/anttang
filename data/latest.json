@@ -6,9 +6,9 @@
    "fire": 76.5,
    "pot": 89.1,
    "fear_greed": 39.9,
-   "ind_net": -4869,
+   "ind_net": -4587,
    "trigger": "없음",
-   "kospi_from_high": -42.4,
+   "kospi_from_high": -42.6,
    "nasdaq_from_high": -8.5,
    "trapped_tn": 26.7,
    "margin_tn": 25.93,
@@ -19,15 +19,15 @@
  "indices": [
   {
    "name": "코스피",
-   "close": 5409.08,
-   "chg": 1.24,
+   "close": 5388.59,
+   "chg": 0.86,
    "date": "2026-11-13",
    "note": ""
   },
   {
    "name": "코스닥",
-   "close": 717.24,
-   "chg": 2.97,
+   "close": 713.45,
+   "chg": 2.43,
    "date": "2026-11-13",
    "note": ""
   },
@@ -47,21 +47,21 @@
   },
   {
    "name": "항셍",
-   "close": 23859.92,
-   "chg": -0.62,
+   "close": 23868.85,
+   "chg": -0.58,
    "date": "2026-11-13",
    "note": ""
   },
   {
    "name": "상하이종합",
-   "close": 3663.96,
-   "chg": 0.22,
+   "close": 3667.68,
+   "chg": 0.32,
    "date": "2026-11-13",
    "note": ""
   }
  ],
  "meta": {
-  "updated_at": "2026-11-13T11:45:45+09:00",
+  "updated_at": "2026-11-13T11:52:58+09:00",
   "credit_date": "2026-11-11",
   "trapped_estimated": false,
   "stale": []
