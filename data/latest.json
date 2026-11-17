@@ -1,17 +1,17 @@
 {
  "gauge": [
   {
-   "date": "2026-11-16",
-   "score": 85.7,
-   "fire": 82.3,
-   "pot": 89.3,
-   "fear_greed": 31.0,
-   "ind_net": 16633,
-   "trigger": "발동",
-   "kospi_from_high": -45.7,
+   "date": "2026-11-17",
+   "score": 86.4,
+   "fire": 82.8,
+   "pot": 90.0,
+   "fear_greed": 29.2,
+   "ind_net": 5432,
+   "trigger": "없음",
+   "kospi_from_high": -47.1,
    "nasdaq_from_high": -11.6,
-   "trapped_tn": 28.8,
-   "margin_tn": 26.0,
+   "trapped_tn": 29.3,
+   "margin_tn": 26.26,
    "kospi_peak": 9385.59,
    "kospi_peak_date": "2026-06-19"
   }
@@ -19,16 +19,16 @@
  "indices": [
   {
    "name": "코스피",
-   "close": 5100.5,
-   "chg": -3.59,
-   "date": "2026-11-16",
+   "close": 4968.48,
+   "chg": -2.59,
+   "date": "2026-11-17",
    "note": ""
   },
   {
    "name": "코스닥",
-   "close": 665.65,
-   "chg": -4.86,
-   "date": "2026-11-16",
+   "close": 650.06,
+   "chg": -2.34,
+   "date": "2026-11-17",
    "note": ""
   },
   {
@@ -40,29 +40,29 @@
   },
   {
    "name": "닛케이",
-   "close": 61142.35,
-   "chg": 0.53,
-   "date": "2026-11-13",
+   "close": 58860.43,
+   "chg": -1.34,
+   "date": "2026-11-17",
    "note": ""
   },
   {
    "name": "항셍",
-   "close": 23637.6,
-   "chg": -1.55,
-   "date": "2026-11-13",
+   "close": 23508.17,
+   "chg": -1.03,
+   "date": "2026-11-17",
    "note": ""
   },
   {
    "name": "상하이종합",
-   "close": 3634.35,
-   "chg": -0.59,
-   "date": "2026-11-13",
+   "close": 3584.58,
+   "chg": -0.5,
+   "date": "2026-11-17",
    "note": ""
   }
  ],
  "meta": {
-  "updated_at": "2026-11-17T08:22:14+09:00",
-  "credit_date": "2026-11-13",
+  "updated_at": "2026-11-17T19:37:11+09:00",
+  "credit_date": "2026-11-16",
   "trapped_estimated": false,
   "stale": []
  }
