@@ -2,14 +2,14 @@
  "gauge": [
   {
    "date": "2026-11-24",
-   "score": 88.7,
-   "fire": 88.1,
+   "score": 89.2,
+   "fire": 89.2,
    "pot": 89.2,
-   "fear_greed": 16.6,
-   "ind_net": -24527,
+   "fear_greed": 17.4,
+   "ind_net": -24737,
    "trigger": "없음",
    "kospi_from_high": -46.7,
-   "nasdaq_from_high": -13.1,
+   "nasdaq_from_high": -14.4,
    "trapped_tn": 27.3,
    "margin_tn": 25.94,
    "kospi_peak": 9385.59,
@@ -33,35 +33,35 @@
   },
   {
    "name": "나스닥",
-   "close": 24089.56,
-   "chg": 6.51,
-   "date": "2026-11-23",
+   "close": 23733.54,
+   "chg": -1.48,
+   "date": "2026-11-24",
    "note": ""
   },
   {
    "name": "닛케이",
-   "close": 58644.63,
-   "chg": 3.91,
-   "date": "2026-11-24",
+   "close": 56436.65,
+   "chg": -5.06,
+   "date": "2026-11-20",
    "note": ""
   },
   {
    "name": "항셍",
-   "close": 22219.65,
-   "chg": -0.73,
-   "date": "2026-11-24",
+   "close": 22383.74,
+   "chg": -0.12,
+   "date": "2026-11-23",
    "note": ""
   },
   {
    "name": "상하이종합",
-   "close": 3548.37,
-   "chg": 0.27,
-   "date": "2026-11-24",
+   "close": 3538.95,
+   "chg": 0.15,
+   "date": "2026-11-23",
    "note": ""
   }
  ],
  "meta": {
-  "updated_at": "2026-11-24T19:32:51+09:00",
+  "updated_at": "2026-11-25T08:26:55+09:00",
   "credit_date": "2026-11-23",
   "trapped_estimated": false,
   "stale": []
