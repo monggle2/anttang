@@ -1,5 +1,5 @@
 {
- "at": "2026-11-27T19:34:05+09:00",
+ "at": "2026-11-28T08:28:55+09:00",
  "sources": {
   "지수:코스피": {
    "ok": true
@@ -24,7 +24,7 @@
   },
   "신용융자 잔고": {
    "ok": false,
-   "error": "신용융자 값을 찾지 못함"
+   "error": "URLError: <urlopen error timed out>"
   },
   "개인 순매수:kospi": {
    "ok": true
